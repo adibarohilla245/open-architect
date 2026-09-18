@@ -1,0 +1,398 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Open Architect — Live</title>
+    <style>
+      :root {
+        --bg: #0d1117;
+        --panel: #161b22;
+        --border: #30363d;
+        --text: #e6edf3;
+        --muted: #8b949e;
+        --blue: #58a6ff;
+        --green: #3fb950;
+        --red: #f85149;
+        --amber: #d29922;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      body {
+        font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+        background: var(--bg);
+        color: var(--text);
+        margin: 0;
+        padding: 24px;
+        min-height: 100vh;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        margin-bottom: 24px;
+        padding-bottom: 16px;
+        border-bottom: 1px solid var(--border);
+      }
+      h1 {
+        font-weight: 500;
+        margin: 0;
+        font-size: 20px;
+      }
+      .conn {
+        font-size: 12px;
+        color: var(--muted);
+        display: flex;
+        gap: 8px;
+        align-items: center;
+      }
+      .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: var(--muted);
+      }
+      .dot.on {
+        background: var(--green);
+        box-shadow: 0 0 8px var(--green);
+      }
+      .dot.off {
+        background: var(--red);
+      }
+      .sub {
+        color: var(--muted);
+        font-size: 13px;
+        margin-bottom: 20px;
+      }
+      .ticket {
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 16px;
+        background: var(--panel);
+      }
+      .ticket .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 4px;
+        border: none;
+        padding: 0;
+      }
+      .title {
+        font-weight: 600;
+        color: var(--blue);
+        font-size: 14px;
+      }
+      .status {
+        padding: 4px 10px;
+        border-radius: 12px;
+        font-size: 11px;
+        letter-spacing: 0.6px;
+        text-transform: uppercase;
+        font-weight: 600;
+      }
+      .status.running {
+        background: rgba(88, 166, 255, 0.15);
+        color: var(--blue);
+      }
+      .status.done {
+        background: rgba(63, 185, 80, 0.15);
+        color: var(--green);
+      }
+      .status.error {
+        background: rgba(248, 81, 73, 0.15);
+        color: var(--red);
+      }
+      .status.queued {
+        background: rgba(210, 153, 34, 0.15);
+        color: var(--amber);
+      }
+      .log {
+        margin-top: 14px;
+        font-size: 13px;
+        line-height: 1.85;
+      }
+      .log .line {
+        display: flex;
+        gap: 12px;
+        padding: 1px 0;
+        animation: fadeIn 0.25s ease-out;
+      }
+      @keyframes fadeIn {
+        from {
+          opacity: 0;
+          transform: translateX(-4px);
+        }
+        to {
+          opacity: 1;
+          transform: translateX(0);
+        }
+      }
+      .log .time {
+        color: #6e7681;
+        min-width: 68px;
+        font-size: 11.5px;
+        padding-top: 2px;
+      }
+      .log .icon {
+        min-width: 22px;
+      }
+      .log .msg {
+        flex: 1;
+      }
+      .log .msg.streaming {
+        color: var(--blue);
+      }
+      .typing {
+        color: var(--green);
+      }
+      .progress-bar {
+        display: inline-block;
+        width: 140px;
+        height: 6px;
+        background: #21262d;
+        border-radius: 3px;
+        vertical-align: middle;
+        margin-left: 8px;
+        overflow: hidden;
+      }
+      .progress-bar > div {
+        height: 100%;
+        background: linear-gradient(90deg, var(--blue), #79c0ff);
+        transition: width 0.15s linear;
+      }
+      .actions {
+        margin-top: 16px;
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .btn {
+        background: #21262d;
+        color: var(--text);
+        border: 1px solid var(--border);
+        padding: 8px 14px;
+        border-radius: 6px;
+        text-decoration: none;
+        font-size: 12px;
+        font-family: inherit;
+        cursor: pointer;
+        transition: all 0.15s;
+      }
+      .btn:hover {
+        background: #30363d;
+      }
+      .btn.primary {
+        background: #238636;
+        border-color: #2ea043;
+        color: white;
+      }
+      .btn.primary:hover {
+        background: #2ea043;
+      }
+      .empty {
+        color: var(--muted);
+        text-align: center;
+        padding: 60px 0;
+        font-size: 13px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>🤖 Open Architect — Live</h1>
+      <div class="conn">
+        <span class="dot" id="dot"></span>
+        <span id="conn-text">connecting...</span>
+      </div>
+    </header>
+    <div class="sub">
+      Streaming agent activity · tickets appear here as the crew works
+    </div>
+    <div id="tickets">
+      <div class="empty" id="empty">
+        Waiting for the agent to pick up a ticket...
+      </div>
+    </div>
+
+    <script>
+      const ICONS = {
+        queued: "📥",
+        picked: "🎫",
+        opened: "🌐",
+        due: "⏰",
+        moved: "➡️",
+        plan_start: "🧠",
+        plan_done: "📐",
+        file_start: "📄",
+        typing: "⌨️",
+        typing_progress: "⌨️",
+        file_done: "✅",
+        commit: "📦",
+        pr: "🔗",
+        comment: "💬",
+        review_start: "🔍",
+        review_done: "⚖️",
+        pr_fix_start: "🔧",
+        pr_fix_done: "✅",
+        done: "🎉",
+        error: "❌",
+      };
+
+      const STATUS_FOR_EVENT = {
+        queued: { cls: "queued", text: "queued" },
+        picked: { cls: "running", text: "running" },
+        done: { cls: "done", text: "done" },
+        error: { cls: "error", text: "error" },
+      };
+
+      const tickets = {}; // ticket_id -> {el, logEl, statusEl, actionsEl, progressEls}
+
+      function ensureTicket(tid, meta) {
+        if (tickets[tid]) return tickets[tid];
+        document.getElementById("empty")?.remove();
+
+        const el = document.createElement("div");
+        el.className = "ticket";
+        el.innerHTML = `
+    <div class="header">
+      <span class="title">${escapeHtml(meta?.title || tid)}</span>
+      <span class="status running">running</span>
+    </div>
+    <div class="log"></div>
+    <div class="actions"></div>`;
+        document.getElementById("tickets").prepend(el);
+
+        const t = {
+          el,
+          logEl: el.querySelector(".log"),
+          statusEl: el.querySelector(".status"),
+          actionsEl: el.querySelector(".actions"),
+          progressEls: {},
+        };
+        tickets[tid] = t;
+        return t;
+      }
+
+      function addLine(t, ev, customHtml) {
+        const icon = ICONS[ev.kind] ?? "•";
+        const time = new Date(ev.ts * 1000).toLocaleTimeString();
+        const div = document.createElement("div");
+        div.className = "line";
+        div.innerHTML = `
+    <span class="time">${time}</span>
+    <span class="icon">${icon}</span>
+    <span class="msg">${customHtml ?? escapeHtml(ev.message)}</span>`;
+        t.logEl.appendChild(div);
+        // keep the log scrolled
+        t.logEl.parentElement.scrollTop = t.logEl.parentElement.scrollHeight;
+        return div;
+      }
+
+      function setStatus(t, kind) {
+        const s = STATUS_FOR_EVENT[kind];
+        if (!s) return;
+        t.statusEl.className = "status " + s.cls;
+        t.statusEl.textContent = s.text;
+      }
+
+      function escapeHtml(s) {
+        return String(s ?? "").replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+      }
+
+      /* ---------- SSE wiring ---------- */
+
+      const dot = document.getElementById("dot");
+      const connText = document.getElementById("conn-text");
+
+      function setConn(state) {
+        dot.className =
+          "dot " + (state === "on" ? "on" : state === "off" ? "off" : "");
+        connText.textContent =
+          state === "on"
+            ? "live"
+            : state === "off"
+              ? "disconnected"
+              : "connecting...";
+      }
+
+      const es = new EventSource("/events");
+
+      es.onopen = () => setConn("on");
+      es.onerror = () => setConn("off");
+
+      es.onmessage = (e) => {
+        let ev;
+        try {
+          ev = JSON.parse(e.data);
+        } catch {
+          return;
+        }
+
+        const t = ensureTicket(ev.ticket_id, ev.meta);
+
+        // status pill updates
+        if (STATUS_FOR_EVENT[ev.kind]) setStatus(t, ev.kind);
+
+        // skip pure progress noise in the log
+        if (ev.kind === "typing_progress") {
+          const key = ev.meta.path;
+          const bar = t.progressEls[key];
+          if (bar && ev.meta.total) {
+            const pct = Math.min(100, (ev.meta.written / ev.meta.total) * 100);
+            bar.querySelector("div").style.width = pct + "%";
+          }
+          return;
+        }
+
+        // typing start — inject a progress bar
+        if (ev.kind === "typing") {
+          const line = addLine(
+            t,
+            ev,
+            `Typing <span class="typing">${escapeHtml(ev.meta.path)}</span>
+       <span class="progress-bar"><div style="width:0%"></div></span>`,
+          );
+          t.progressEls[ev.meta.path] = line.querySelector(".progress-bar");
+          return;
+        }
+
+        // completion — add action buttons
+        if (ev.kind === "done") {
+          addLine(t, ev);
+          const prUrl = ev.meta.pr_url;
+          const trelloUrl = ev.meta.trello_url;
+          t.actionsEl.innerHTML = `
+      ${prUrl ? `<a class="btn primary" href="${prUrl}"     target="_blank">🔗 Open PR</a>` : ""}
+      ${trelloUrl ? `<a class="btn"         href="${trelloUrl}" target="_blank">📋 Open Trello Card</a>` : ""}`;
+          return;
+        }
+
+        addLine(t, ev);
+
+        /* ----- pywebview bridge ----- */
+        // Called by Python side: window.__onEvent({...})
+        window.__onEvent = function (ev) {
+          handleEvent(ev); // the same function you already use for SSE
+        };
+
+        // tell Python we're ready
+        if (window.pywebview && window.pywebview.api) {
+          window.pywebview.api.on_ready();
+        }
+      };
+    </script>
+  </body>
+</html>

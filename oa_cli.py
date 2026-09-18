@@ -1,6 +1,7 @@
 import argparse
 from dotenv import load_dotenv
 from threading import Thread
+import time
 import os
 from src.helpers.github import GHHelper
 from src.helpers.trello import TrelloHelper
@@ -10,16 +11,18 @@ from src.agents.reviewer import Reviewer
 
 def start_intern(gh_helper_intern, trello_helper):
     intern = Intern("Alex", gh_helper=gh_helper_intern, board_helper=trello_helper)
-    intern_thread = Thread(target=intern.run)
+    intern_thread = Thread(target=intern.run, daemon=True)
     intern_thread.start()
+    return intern_thread
 
 
 def start_reviewer(gh_helper_reviewer, trello_helper):
     reviewer = Reviewer(
         "Charlie", gh_helper=gh_helper_reviewer, board_helper=trello_helper
     )
-    reviewer_thread = Thread(target=reviewer.run)
+    reviewer_thread = Thread(target=reviewer.run, daemon=True)
     reviewer_thread.start()
+    return reviewer_thread
 
 
 def main():
@@ -60,12 +63,21 @@ def main():
     gh_helper_reviewer = GHHelper(gh_api_token_reviewer, gh_repo)
     trello_helper = TrelloHelper(trello_api_key, trello_token, trello_board_id)
 
+    threads = []
     if args.command == "run":
         for agent in args.agents:
             if agent == "intern":
-                start_intern(gh_helper_intern, trello_helper)
+                threads.append(start_intern(gh_helper_intern, trello_helper))
             elif agent == "reviewer":
-                start_reviewer(gh_helper_reviewer, trello_helper)
+                threads.append(start_reviewer(gh_helper_reviewer, trello_helper))
+
+    # Keep the main process alive so agent threads keep running,
+    # opening Trello/VS Code/GitHub for real as they work.
+    try:
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        print("\nShutting down...")
 
 
 if __name__ == "__main__":

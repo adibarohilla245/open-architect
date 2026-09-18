@@ -1,4 +1,6 @@
 from typing import List
+import time
+
 
 from github import Auth, Github, InputGitTreeElement, InputGitAuthor
 
@@ -101,7 +103,7 @@ class GHHelper:
         )
 
     def push_changes(
-        self, branch_name, pr_title, pr_body, new_files, ticket_id, author_id
+        self, branch_name, pr_title, pr_body, new_files, ticket_id, author_id, commit_message="Apply diff to multiple files"
     ):
         # Parse the diff and create blobs for each modified file
         # Hoping that the diff is properly formatted
@@ -129,7 +131,6 @@ class GHHelper:
         # Create a new commit with the new tree on the new branch
         author = InputGitAuthor("Open Architect", "openarchitect@gmail.com")
 
-        commit_message = "Apply diff to multiple files"
         new_commit = self.repo.create_git_commit(
             commit_message,
             new_tree,
@@ -143,12 +144,24 @@ class GHHelper:
         # Create a new pull request
         base_branch = "main"  # Replace with the target branch for the pull request
         head = f"{self.repo.owner.login}:{branch_name}"  # Update the head parameter
-        self.repo.create_pull(
+        pr = self.repo.create_pull(
             title=pr_title,
             body=add_ticket_info_to_pr_body(ticket_id, author_id, pr_body),
             head=head,
             base=base_branch,
         )
+        return pr.html_url
+
+    def create_pr_for_branch(self, branch_name, pr_title, pr_body, ticket_id, author_id):
+        base_branch = "main"
+        head = f"{self.repo.owner.login}:{branch_name}"
+        pr = self.repo.create_pull(
+            title=pr_title,
+            body=add_ticket_info_to_pr_body(ticket_id, author_id, pr_body),
+            head=head,
+            base=base_branch,
+        )
+        return pr.html_url
 
     def get_entire_codebase(self) -> Codebase:
         contents = self.repo.get_contents("")
@@ -165,6 +178,16 @@ class GHHelper:
         codebase = Codebase(files=codebase_dict)
 
         return codebase
+
+    def is_mergeable(self, pr_number):
+        pr = self.repo.get_pull(pr_number)
+        # GitHub computes this async; poll briefly if it's not ready yet
+        for _ in range(5):
+            pr = self.repo.get_pull(pr_number)
+            if pr.mergeable is not None:
+                break
+            time.sleep(2)
+        return pr.mergeable
 
     def get_file_content(self, file):
         contents = self.repo.get_contents(file)

@@ -49,7 +49,9 @@ class DiffGenerator(dspy.Module):
         )
 
         subset_codebase = {
-            file: codebase.files[file] for file in relevant_files.relevant_files
+            file: codebase.files[file]
+            for file in relevant_files.relevant_files
+            if file in codebase.files
         }
 
         relevant_codebase = Codebase(files=subset_codebase)

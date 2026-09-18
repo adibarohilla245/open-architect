@@ -111,6 +111,58 @@ class TrelloHelper(BoardHelper):
             for card in cards
         ]
 
+    # --- NEW: fetch tickets sitting in the Backlog list ---
+    def get_backlog_tickets(self) -> List[Ticket]:
+        cards = self.client.get_list(
+            self.list_ids[TicketStatus.BACKLOG.value]
+        ).list_cards()
+        if not cards:
+            return []
+
+        return [
+            Ticket(
+                id=card.id,
+                title=card.name,
+                description=card.description,
+                assignee_id=card.labels[0].id if card.labels else "unassigned",
+            )
+            for card in cards
+        ]
+
+    def set_due_date(self, ticket_id):
+        import datetime
+        due = (datetime.datetime.utcnow() + datetime.timedelta(hours=2)).isoformat() + "Z"
+        self.client.fetch_json(
+            f"cards/{ticket_id}",
+            http_method="PUT",
+            query_params={"due": due},
+        )
+
+    def mark_due_complete(self, ticket_id):
+        self.client.fetch_json(
+            f"cards/{ticket_id}",
+            http_method="PUT",
+            query_params={"dueComplete": "true"},
+    )
+
+    def add_comment(self, ticket_id, text):
+        self.client.fetch_json(
+            f"cards/{ticket_id}/actions/comments",
+            http_method="POST",
+            query_params={"text": text},
+    )
+
+    # --- NEW: fetch comments on a card, oldest first ---
+    def get_comments(self, ticket_id) -> List[dict]:
+        actions = self.client.fetch_json(
+            f"cards/{ticket_id}/actions",
+            query_params={"filter": "commentCard"},
+        )
+        if not actions:
+            return []
+        # Trello's API returns newest-first by default; flip to chronological order
+        return list(reversed(actions))
+
     def get_waiting_for_review_tickets(self) -> List[Ticket]:
         cards = self.client.get_list(
             self.list_ids[TicketStatus.READY_FOR_REVIEW.value]
