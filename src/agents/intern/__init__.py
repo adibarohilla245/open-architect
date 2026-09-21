@@ -177,14 +177,13 @@ class Intern:
         print(f"{self.log_name} Setting a due date for this ticket...")
         self.board_helper.set_due_date(ticket.id)
         time.sleep(1)
-        os.system(f'start "" {chrome_path} "{card_url}?t={int(time.time())}"')
-        time.sleep(2)
 
         print(f"{self.log_name} Moving the ticket to WIP...")
         self.board_helper.move_to_wip(ticket.id)
         time.sleep(1)
-        os.system(f'start "" {chrome_path} "{board_url}?t={int(time.time())}"')
-        time.sleep(2.5)
+
+        print(f"{self.log_name} Trello updates completed.")
+        time.sleep(2)
 
         print(f"{self.log_name} Opening my project folder...")
         subprocess.Popen(["code", "-n", demo_dir], shell=True)
