@@ -14,6 +14,8 @@ import webbrowser
 import re
 from openai import OpenAI
 from dotenv import load_dotenv
+import pyautogui
+import pygetwindow as gw
 
 load_dotenv()
 _openai_client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
@@ -71,6 +73,18 @@ def run_git_visible(cmd, cwd):
         print(result.stderr.strip())
     time.sleep(0.8)
     return result
+
+
+def refresh_chrome_tab():
+    try:
+        chrome_windows = gw.getWindowsWithTitle("Chrome")
+        if chrome_windows:
+            win = chrome_windows[0]
+            win.activate()
+            time.sleep(0.5)
+            pyautogui.press("f5")
+    except Exception as e:
+        print(f"Couldn't refresh Chrome: {e}")
 
 
 def run_commit_push_in_new_terminal(demo_dir, branch_name, commit_message):
@@ -164,11 +178,19 @@ class Intern:
 
         print(f'{self.log_name} Starting to work on ticket "{ticket.title:.30}..."')
 
+        demo_dir = r"C:\Users\Expertizo\oa-demo-repo"
+
+        print(f"{self.log_name} Pulling latest changes before starting...")
+        run_git_visible(["git", "checkout", "--", "."], demo_dir)
+        run_git_visible(["git", "clean", "-fd"], demo_dir)
+        run_git_visible(["git", "checkout", "main"], demo_dir)
+        run_git_visible(["git", "checkout", "--", "."], demo_dir)
+        run_git_visible(["git", "pull", "origin", "main"], demo_dir)
+
         # --- DEMO: open card, set due date (visible), move to WIP (visible), then open project folder ---
         chrome_path = r'"C:\Program Files\Google\Chrome\Application\chrome.exe" --profile-directory="Default"'
         card_url = f"https://trello.com/c/{ticket.id}"
         board_url = f"https://trello.com/b/{self.board_helper.board_id}"
-        demo_dir = r"C:\Users\Expertizo\oa-demo-repo"
 
         print(f"{self.log_name} Opening my task card...")
         os.system(f'start "" {chrome_path} "{card_url}"')
@@ -177,13 +199,17 @@ class Intern:
         print(f"{self.log_name} Setting a due date for this ticket...")
         self.board_helper.set_due_date(ticket.id)
         time.sleep(1)
+        refresh_chrome_tab()
+        time.sleep(1.5)
 
         print(f"{self.log_name} Moving the ticket to WIP...")
         self.board_helper.move_to_wip(ticket.id)
         time.sleep(1)
+        refresh_chrome_tab()
+        time.sleep(1.5)
 
         print(f"{self.log_name} Trello updates completed.")
-        time.sleep(2)
+        time.sleep(1)
 
         print(f"{self.log_name} Opening my project folder...")
         subprocess.Popen(["code", "-n", demo_dir], shell=True)
@@ -200,13 +226,8 @@ class Intern:
         raw_branch = f"{ticket.id}_{ticket.title.lower().replace(' ', '_')}"
         branch_name = re.sub(r"[^a-zA-Z0-9_\-]", "", raw_branch)
 
-        # --- Clean up and create the branch FIRST, before writing any new code ---
-        print(f"{self.log_name} Preparing a clean branch off main...")
-        run_git_visible(["git", "checkout", "--", "."], demo_dir)
-        run_git_visible(["git", "clean", "-fd"], demo_dir)
-        run_git_visible(["git", "checkout", "main"], demo_dir)
-        run_git_visible(["git", "checkout", "--", "."], demo_dir)
-        run_git_visible(["git", "pull", "origin", "main"], demo_dir)
+        # --- Create the branch off the already-pulled main ---
+        print(f"{self.log_name} Creating branch {branch_name}...")
         run_git_visible(["git", "checkout", "-B", branch_name], demo_dir)
 
         # --- DEMO: open file, then "type" the code live in VS Code ---
