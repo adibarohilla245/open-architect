@@ -1,5 +1,4 @@
 # Environments
-.env
 .venv
 *env/
 ENV/
@@ -21,3 +20,5 @@ venv.bak/
 creds.json
 *.txt
 *.ipynb
+config.bat
+node_modules

@@ -16,6 +16,7 @@ HEADERS = {
 
 COLORS = ["green", "yellow", "orange", "red", "purple", "blue", "sky", "lime", "pink", "black"]
 
+
 class CustomTrelloClient(TrelloClient):
     # Patch, because the base one is not working
     def __init__(self, api_key, token):
@@ -33,7 +34,6 @@ class CustomTrelloClient(TrelloClient):
             "idLabels": [label_id],
         }
         res = requests.post(url, headers=HEADERS, params=query_params)
-        # print("Response from adding card to trello board: " + str(res.json()))
 
     def fetch_json(
         self,
@@ -111,7 +111,6 @@ class TrelloHelper(BoardHelper):
             for card in cards
         ]
 
-    # --- NEW: fetch tickets sitting in the Backlog list ---
     def get_backlog_tickets(self) -> List[Ticket]:
         cards = self.client.get_list(
             self.list_ids[TicketStatus.BACKLOG.value]
@@ -143,16 +142,15 @@ class TrelloHelper(BoardHelper):
             f"cards/{ticket_id}",
             http_method="PUT",
             query_params={"dueComplete": "true"},
-    )
+        )
 
     def add_comment(self, ticket_id, text):
         self.client.fetch_json(
             f"cards/{ticket_id}/actions/comments",
             http_method="POST",
             query_params={"text": text},
-    )
+        )
 
-    # --- NEW: fetch comments on a card, oldest first ---
     def get_comments(self, ticket_id) -> List[dict]:
         actions = self.client.fetch_json(
             f"cards/{ticket_id}/actions",
@@ -160,7 +158,6 @@ class TrelloHelper(BoardHelper):
         )
         if not actions:
             return []
-        # Trello's API returns newest-first by default; flip to chronological order
         return list(reversed(actions))
 
     def get_waiting_for_review_tickets(self) -> List[Ticket]:
@@ -205,11 +202,31 @@ class TrelloHelper(BoardHelper):
             ticket.assignee_id = assignee
             ticket.status = TicketStatus.BACKLOG
             print(f"Adding card to list {self.list_ids[TicketStatus.BACKLOG.value]}")
-            # Create a card in the backlog
             self.client.add_card(
                 ticket.title,
                 ticket.description,
                 self.list_ids[TicketStatus.BACKLOG.value],
+                assignee,
+            )
+            ticket_list.append(ticket)
+
+        return ticket_list
+
+    # ✅ NAYA METHOD — To Do mein cards banata hai
+    def push_tickets_to_todo_and_assign(self, tickets: List[Ticket]) -> List[Ticket]:
+        """Direct To Do mein cards banao aur assign karo."""
+        interns = self.get_intern_list()
+        ticket_list = []
+        for ticket in tickets:
+            assignee = choice(interns)
+            print(f"Assigning {ticket.title} to {assignee}")
+            ticket.assignee_id = assignee
+            ticket.status = TicketStatus.TODO
+            print(f"Adding card to list {self.list_ids[TicketStatus.TODO.value]}")
+            self.client.add_card(
+                ticket.title,
+                ticket.description,
+                self.list_ids[TicketStatus.TODO.value],
                 assignee,
             )
             ticket_list.append(ticket)
