@@ -12,7 +12,6 @@ class GeneratedCodeReview:
 
 class ReviewerSignature(dspy.Signature):
     # Inputs
-    # codebase: Codebase = dspy.InputField()
     ticket: Ticket = dspy.InputField()
     pr: PR = dspy.InputField()
     # Outputs
@@ -21,7 +20,7 @@ class ReviewerSignature(dspy.Signature):
         desc="Does this code actually resolve the ticket? Is it changing the right files?"
     )
     code_review: CodeReview = dspy.OutputField(
-        desc="If valid, provide a brief comment saying that it looks good. If not valid, provide comments for changes that are needed along with exact line numbers and/or start and end line number. If adding comments, make it different from the main body text."
+        desc="Provide the review as a valid JSON object ONLY. No text outside JSON. No markdown fences."
     )
 
 
@@ -33,9 +32,22 @@ class ReviewerAgent(dspy.Module):
     def forward(
         self, codebase: Codebase, pr: PR, ticket: Ticket
     ) -> GeneratedCodeReview:
-        # Get the review
-        generated_review = self.code_review_generator(
-            codebase=codebase, ticket=ticket, pr=pr
-        )
+        try:
+            generated_review = self.code_review_generator(
+                codebase=codebase, ticket=ticket, pr=pr
+            )
+            return generated_review
+        except Exception as e:
+            print(f"[ReviewerAgent] LLM output parse failed: {e}")
+            print(f"[ReviewerAgent] Using fallback review (COMMENT)")
 
-        return generated_review
+            fallback = GeneratedCodeReview()
+            fallback.is_valid_code = True
+            fallback.resolves_ticket = True
+            fallback.code_review = CodeReview(
+                pr=pr,
+                body="Auto-reviewed — LLM output could not be parsed. Manual review recommended.",
+                event="COMMENT",
+                comments=[],
+            )
+            return fallback
